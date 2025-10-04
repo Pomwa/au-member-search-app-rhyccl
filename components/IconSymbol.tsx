@@ -7,6 +7,7 @@ import {
   StyleProp,
   TextStyle,
   ViewStyle,
+  TouchableOpacity,
 } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
@@ -154,6 +155,7 @@ const MAPPING = {
   "magnifyingglass": "search",
   "line.3.horizontal.decrease": "filter-list",
   "arrow.up.arrow.down": "sort",
+  "xmark.circle.fill": "cancel",
 
   // Visibility & Display
   "eye.fill": "visibility",
@@ -161,6 +163,10 @@ const MAPPING = {
   "lightbulb.fill": "lightbulb",
   "moon.fill": "dark-mode",
   "sun.max.fill": "light-mode",
+
+  // Buildings & Government
+  "building.2": "business",
+  "building.fill": "business",
 } as Partial<
   Record<
     import("expo-symbols").SymbolViewProps["name"],
@@ -180,14 +186,16 @@ export function IconSymbol({
   size = 24,
   color,
   style,
+  onPress,
 }: {
   name: IconSymbolName;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;
   weight?: SymbolWeight;
+  onPress?: () => void;
 }) {
-  return (
+  const IconComponent = (
     <MaterialIcons
       color={color}
       size={size}
@@ -195,4 +203,14 @@ export function IconSymbol({
       style={style as StyleProp<TextStyle>}
     />
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} style={{ alignSelf: 'flex-start' }}>
+        {IconComponent}
+      </TouchableOpacity>
+    );
+  }
+
+  return IconComponent;
 }
