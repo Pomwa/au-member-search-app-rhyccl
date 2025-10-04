@@ -1,32 +1,31 @@
-import "react-native-reanimated";
-import React, { useEffect } from "react";
-import { useFonts } from "expo-font";
-import { Stack, router } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
-import { SystemBars } from "react-native-edge-to-edge";
+
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, Alert } from "react-native";
-import { useNetworkState } from "expo-network";
+import "react-native-reanimated";
+import { WidgetProvider } from "@/contexts/WidgetContext";
 import {
   DarkTheme,
   DefaultTheme,
   Theme,
   ThemeProvider,
 } from "@react-navigation/native";
+import { useColorScheme, Alert } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { Stack, router } from "expo-router";
+import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
+import { SystemBars } from "react-native-edge-to-edge";
+import { useNetworkState } from "expo-network";
+import React, { useEffect } from "react";
 import { Button } from "@/components/button";
-import { WidgetProvider } from "@/contexts/WidgetContext";
+import { dataUpdateScheduler } from "@/utils/dataUpdateScheduler";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-export const unstable_settings = {
-  initialRouteName: "(tabs)",
-};
-
-export default function RootLayout() {
+const RootLayout = () => {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
+
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -37,88 +36,107 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  React.useEffect(() => {
-    if (
-      !networkState.isConnected &&
-      networkState.isInternetReachable === false
-    ) {
-      Alert.alert(
-        "🔌 You are offline",
-        "You can keep using the app! Your changes will be saved locally and synced when you are back online."
-      );
+  // Initialize data updates when app starts
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        console.log('Initializing parliamentary data updates...');
+        
+        // Initialize background fetch
+        await dataUpdateScheduler.initializeBackgroundFetch();
+        
+        // Check for updates on app start
+        const updateResult = await dataUpdateScheduler.checkAndUpdate();
+        console.log('Initial update check result:', updateResult);
+        
+        if (updateResult.updated && !updateResult.success) {
+          console.warn('Initial data update failed, but app will continue with cached data');
+        }
+        
+      } catch (error) {
+        console.error('Error initializing app:', error);
+      }
+    };
+
+    if (loaded) {
+      initializeApp();
     }
-  }, [networkState.isConnected, networkState.isInternetReachable]);
+  }, [loaded]);
+
+  // Monitor network state for connectivity-dependent features
+  useEffect(() => {
+    if (networkState.isConnected === false) {
+      console.log('Network disconnected - app will use cached data');
+    } else if (networkState.isConnected === true) {
+      console.log('Network connected - fresh data updates available');
+    }
+  }, [networkState.isConnected]);
 
   if (!loaded) {
     return null;
   }
 
-  const CustomDefaultTheme: Theme = {
-    ...DefaultTheme,
-    dark: false,
-    colors: {
-      primary: "rgb(0, 122, 255)", // System Blue
-      background: "rgb(242, 242, 247)", // Light mode background
-      card: "rgb(255, 255, 255)", // White cards/surfaces
-      text: "rgb(0, 0, 0)", // Black text for light mode
-      border: "rgb(216, 216, 220)", // Light gray for separators/borders
-      notification: "rgb(255, 59, 48)", // System Red
-    },
-  };
-
-  const CustomDarkTheme: Theme = {
+  const customDarkTheme: Theme = {
     ...DarkTheme,
     colors: {
-      primary: "rgb(10, 132, 255)", // System Blue (Dark Mode)
-      background: "rgb(1, 1, 1)", // True black background for OLED displays
-      card: "rgb(28, 28, 30)", // Dark card/surface color
-      text: "rgb(255, 255, 255)", // White text for dark mode
-      border: "rgb(44, 44, 46)", // Dark gray for separators/borders
-      notification: "rgb(255, 69, 58)", // System Red (Dark Mode)
+      ...DarkTheme.colors,
+      primary: '#007AFF',
+      background: '#000000',
+      card: '#1C1C1E',
+      text: '#FFFFFF',
+      border: '#38383A',
+      notification: '#FF453A',
     },
   };
-  return (
-    <>
-      <StatusBar style="auto" animated />
-        <ThemeProvider
-          value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-        >
-          <WidgetProvider>
-            <GestureHandlerRootView>
-            <Stack>
-              {/* Main app with tabs */}
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-              {/* Modal Demo Screens */}
-              <Stack.Screen
-                name="modal"
-                options={{
-                  presentation: "modal",
-                  title: "Standard Modal",
-                }}
-              />
-              <Stack.Screen
-                name="formsheet"
-                options={{
-                  presentation: "formSheet",
-                  title: "Form Sheet Modal",
-                  sheetGrabberVisible: true,
-                  sheetAllowedDetents: [0.5, 0.8, 1.0],
-                  sheetCornerRadius: 20,
-                }}
-              />
-              <Stack.Screen
-                name="transparent-modal"
-                options={{
-                  presentation: "transparentModal",
-                  headerShown: false,
-                }}
-              />
-            </Stack>
-            <SystemBars style={"auto"} />
-            </GestureHandlerRootView>
-          </WidgetProvider>
-        </ThemeProvider>
-    </>
+  const customLightTheme: Theme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: '#007AFF',
+      background: '#F2F2F7',
+      card: '#FFFFFF',
+      text: '#000000',
+      border: '#C6C6C8',
+      notification: '#FF3B30',
+    },
+  };
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === "dark" ? customDarkTheme : customLightTheme}>
+        <WidgetProvider>
+          <SystemBars style={colorScheme === "dark" ? "light" : "dark"} />
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen 
+              name="modal" 
+              options={{ 
+                presentation: "modal",
+                title: "Modal Screen"
+              }} 
+            />
+            <Stack.Screen 
+              name="transparent-modal" 
+              options={{ 
+                presentation: "transparentModal",
+                animation: "fade",
+                title: "Transparent Modal"
+              }} 
+            />
+            <Stack.Screen 
+              name="formsheet" 
+              options={{ 
+                presentation: "formSheet",
+                title: "Form Sheet"
+              }} 
+            />
+          </Stack>
+          <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+        </WidgetProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
-}
+};
+
+export default RootLayout;

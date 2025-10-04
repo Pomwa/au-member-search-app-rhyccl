@@ -1,173 +1,22 @@
 
-import { ParliamentaryMember } from '../types/ParliamentaryMember';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Mock data for demonstration - in a real app, this would come from an API
-export const parliamentaryMembersData: ParliamentaryMember[] = [
-  {
-    id: '1',
-    fullName: 'Anthony Albanese',
-    party: 'Australian Labor Party',
-    suburb: 'Marrickville',
-    state: 'NSW',
-    electorate: 'Grayndler',
-    chamber: 'House of Representatives',
-    email: 'anthony.albanese.mp@aph.gov.au',
-    phone: '(02) 9564 3588',
-  },
-  {
-    id: '2',
-    fullName: 'Peter Dutton',
-    party: 'Liberal Party of Australia',
-    suburb: 'Dickson',
-    state: 'QLD',
-    electorate: 'Dickson',
-    chamber: 'House of Representatives',
-    email: 'peter.dutton.mp@aph.gov.au',
-    phone: '(07) 3205 9977',
-  },
-  {
-    id: '3',
-    fullName: 'Adam Bandt',
-    party: 'Australian Greens',
-    suburb: 'Melbourne',
-    state: 'VIC',
-    electorate: 'Melbourne',
-    chamber: 'House of Representatives',
-    email: 'adam.bandt.mp@aph.gov.au',
-    phone: '(03) 9417 0772',
-  },
-  {
-    id: '4',
-    fullName: 'Penny Wong',
-    party: 'Australian Labor Party',
-    suburb: 'Adelaide',
-    state: 'SA',
-    chamber: 'Senate',
-    email: 'senator.wong@aph.gov.au',
-    phone: '(08) 8354 0511',
-  },
-  {
-    id: '5',
-    fullName: 'Simon Birmingham',
-    party: 'Liberal Party of Australia',
-    suburb: 'Adelaide',
-    state: 'SA',
-    chamber: 'Senate',
-    email: 'senator.birmingham@aph.gov.au',
-    phone: '(08) 8354 0966',
-  },
-  {
-    id: '6',
-    fullName: 'Larissa Waters',
-    party: 'Australian Greens',
-    suburb: 'Brisbane',
-    state: 'QLD',
-    chamber: 'Senate',
-    email: 'senator.waters@aph.gov.au',
-    phone: '(07) 3252 7101',
-  },
-  {
-    id: '7',
-    fullName: 'Jacinta Nampijinpa Price',
-    party: 'Country Liberal Party',
-    suburb: 'Alice Springs',
-    state: 'NT',
-    chamber: 'Senate',
-    email: 'senator.price@aph.gov.au',
-    phone: '(08) 8951 4251',
-  },
-  {
-    id: '8',
-    fullName: 'David Pocock',
-    party: 'Independent',
-    suburb: 'Canberra',
-    state: 'ACT',
-    chamber: 'Senate',
-    email: 'senator.pocock@aph.gov.au',
-    phone: '(02) 6277 3018',
-  },
-  {
-    id: '9',
-    fullName: 'Zali Steggall',
-    party: 'Independent',
-    suburb: 'Warringah',
-    state: 'NSW',
-    electorate: 'Warringah',
-    chamber: 'House of Representatives',
-    email: 'zali.steggall.mp@aph.gov.au',
-    phone: '(02) 9977 6411',
-  },
-  {
-    id: '10',
-    fullName: 'Pauline Hanson',
-    party: 'One Nation',
-    suburb: 'Brisbane',
-    state: 'QLD',
-    chamber: 'Senate',
-    email: 'senator.hanson@aph.gov.au',
-    phone: '(07) 3252 8066',
-  },
-  {
-    id: '11',
-    fullName: 'Tanya Plibersek',
-    party: 'Australian Labor Party',
-    suburb: 'Sydney',
-    state: 'NSW',
-    electorate: 'Sydney',
-    chamber: 'House of Representatives',
-    email: 'tanya.plibersek.mp@aph.gov.au',
-    phone: '(02) 9357 6366',
-  },
-  {
-    id: '12',
-    fullName: 'Josh Frydenberg',
-    party: 'Liberal Party of Australia',
-    suburb: 'Kooyong',
-    state: 'VIC',
-    electorate: 'Kooyong',
-    chamber: 'House of Representatives',
-    email: 'josh.frydenberg.mp@aph.gov.au',
-    phone: '(03) 9882 3677',
-  },
-  {
-    id: '13',
-    fullName: 'Richard Di Natale',
-    party: 'Australian Greens',
-    suburb: 'Melbourne',
-    state: 'VIC',
-    chamber: 'Senate',
-    email: 'senator.dinatale@aph.gov.au',
-    phone: '(03) 9417 6100',
-  },
-  {
-    id: '14',
-    fullName: 'Michaelia Cash',
-    party: 'Liberal Party of Australia',
-    suburb: 'Perth',
-    state: 'WA',
-    chamber: 'Senate',
-    email: 'senator.cash@aph.gov.au',
-    phone: '(08) 9226 1277',
-  },
-  {
-    id: '15',
-    fullName: 'Nick McKim',
-    party: 'Australian Greens',
-    suburb: 'Hobart',
-    state: 'TAS',
-    chamber: 'Senate',
-    email: 'senator.mckim@aph.gov.au',
-    phone: '(03) 6224 3707',
-  },
-];
+import { ParliamentaryMember, DataUpdateInfo } from '../types/ParliamentaryMember';
+import { parliamentDataFetcher } from './parliamentDataFetcher';
 
 const MEMBERS_CACHE_KEY = 'parliamentary_members_cache';
+const UPDATE_INFO_KEY = 'parliamentary_update_info';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export class ParliamentaryMembersService {
   private static instance: ParliamentaryMembersService;
-  private members: ParliamentaryMember[] = parliamentaryMembersData;
+  private members: ParliamentaryMember[] = [];
   private cacheLoaded = false;
+  private updateInfo: DataUpdateInfo = {
+    lastUpdated: '',
+    nextUpdate: '',
+    updateInProgress: false,
+    lastUpdateSuccess: false
+  };
 
   static getInstance(): ParliamentaryMembersService {
     if (!ParliamentaryMembersService.instance) {
@@ -181,7 +30,11 @@ export class ParliamentaryMembersService {
     if (this.cacheLoaded) return;
 
     try {
-      const cachedData = await AsyncStorage.getItem(MEMBERS_CACHE_KEY);
+      const [cachedData, updateInfoData] = await Promise.all([
+        AsyncStorage.getItem(MEMBERS_CACHE_KEY),
+        AsyncStorage.getItem(UPDATE_INFO_KEY)
+      ]);
+
       if (cachedData) {
         const parsedData = JSON.parse(cachedData);
         if (Array.isArray(parsedData) && parsedData.length > 0) {
@@ -189,6 +42,12 @@ export class ParliamentaryMembersService {
           console.log(`Loaded ${parsedData.length} members from cache`);
         }
       }
+
+      if (updateInfoData) {
+        this.updateInfo = JSON.parse(updateInfoData);
+        console.log('Loaded update info from cache:', this.updateInfo);
+      }
+
     } catch (error) {
       console.error('Error loading cached data:', error);
     } finally {
@@ -199,28 +58,225 @@ export class ParliamentaryMembersService {
   // Save data to cache
   private async saveCachedData(): Promise<void> {
     try {
-      await AsyncStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify(this.members));
-      console.log('Members data cached successfully');
+      await Promise.all([
+        AsyncStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify(this.members)),
+        AsyncStorage.setItem(UPDATE_INFO_KEY, JSON.stringify(this.updateInfo))
+      ]);
+      console.log('Members data and update info cached successfully');
     } catch (error) {
       console.error('Error caching data:', error);
     }
   }
 
-  // Simulate API call to fetch all members
-  async fetchMembers(): Promise<ParliamentaryMember[]> {
+  // Check if cache is expired
+  private isCacheExpired(): boolean {
+    if (!this.updateInfo.lastUpdated) return true;
+    
+    const lastUpdate = new Date(this.updateInfo.lastUpdated);
+    const now = new Date();
+    const timeDiff = now.getTime() - lastUpdate.getTime();
+    
+    return timeDiff > CACHE_DURATION;
+  }
+
+  // Update next update time
+  private updateNextUpdateTime(): void {
+    const now = new Date();
+    const nextUpdate = new Date(now.getTime() + CACHE_DURATION);
+    this.updateInfo.nextUpdate = nextUpdate.toISOString();
+  }
+
+  // Fetch members with automatic update checking
+  async fetchMembers(forceUpdate: boolean = false): Promise<ParliamentaryMember[]> {
     console.log('Fetching parliamentary members from service...');
     
     // Load cached data first
     await this.loadCachedData();
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Check if we need to update
+    const needsUpdate = forceUpdate || this.isCacheExpired() || this.members.length === 0;
     
-    // In a real app, this would be an actual API call
-    // const response = await fetch('https://api.parliament.gov.au/members');
-    // const data = await response.json();
+    if (needsUpdate && !this.updateInfo.updateInProgress) {
+      console.log('Cache expired or force update requested, fetching fresh data...');
+      
+      try {
+        this.updateInfo.updateInProgress = true;
+        await this.saveCachedData();
+
+        // Check if data source is available
+        const isAvailable = await parliamentDataFetcher.checkDataSourceAvailability();
+        
+        if (isAvailable) {
+          // Fetch fresh data from parliament websites
+          const freshData = await parliamentDataFetcher.fetchAllParliamentaryData();
+          
+          if (freshData && freshData.length > 0) {
+            this.members = freshData;
+            this.updateInfo.lastUpdated = new Date().toISOString();
+            this.updateInfo.lastUpdateSuccess = true;
+            this.updateInfo.errorMessage = undefined;
+            this.updateNextUpdateTime();
+            
+            console.log(`Successfully updated with ${freshData.length} members from live data`);
+          } else {
+            throw new Error('No data received from parliament websites');
+          }
+        } else {
+          throw new Error('Parliament data sources are not available');
+        }
+        
+      } catch (error) {
+        console.error('Failed to fetch fresh data:', error);
+        this.updateInfo.lastUpdateSuccess = false;
+        this.updateInfo.errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        // If we have no cached data, use fallback data
+        if (this.members.length === 0) {
+          console.log('No cached data available, using fallback data');
+          this.members = this.getFallbackData();
+        }
+      } finally {
+        this.updateInfo.updateInProgress = false;
+        await this.saveCachedData();
+      }
+    } else if (this.members.length === 0) {
+      // No cached data and no update needed, use fallback
+      console.log('Using fallback data');
+      this.members = this.getFallbackData();
+    }
     
     return [...this.members];
+  }
+
+  // Get fallback data when live data is not available
+  private getFallbackData(): ParliamentaryMember[] {
+    return [
+      {
+        id: 'fallback_1',
+        fullName: 'Anthony Albanese',
+        party: 'Australian Labor Party',
+        suburb: 'Marrickville',
+        state: 'NSW',
+        electorate: 'Grayndler',
+        chamber: 'House of Representatives',
+        email: 'anthony.albanese.mp@aph.gov.au',
+        phone: '(02) 9564 3588',
+        photoUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Prime Minister'],
+        isMinister: true,
+        isShadowMinister: false,
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        id: 'fallback_2',
+        fullName: 'Peter Dutton',
+        party: 'Liberal Party of Australia',
+        suburb: 'Dickson',
+        state: 'QLD',
+        electorate: 'Dickson',
+        chamber: 'House of Representatives',
+        email: 'peter.dutton.mp@aph.gov.au',
+        phone: '(07) 3205 9977',
+        photoUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Leader of the Opposition'],
+        isMinister: false,
+        isShadowMinister: true,
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        id: 'fallback_3',
+        fullName: 'Penny Wong',
+        party: 'Australian Labor Party',
+        suburb: 'Adelaide',
+        state: 'SA',
+        chamber: 'Senate',
+        email: 'senator.wong@aph.gov.au',
+        phone: '(08) 8354 0511',
+        photoUrl: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Foreign Affairs', 'Leader of the Government in the Senate'],
+        isMinister: true,
+        isShadowMinister: false,
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        id: 'fallback_4',
+        fullName: 'Adam Bandt',
+        party: 'Australian Greens',
+        suburb: 'Melbourne',
+        state: 'VIC',
+        electorate: 'Melbourne',
+        chamber: 'House of Representatives',
+        email: 'adam.bandt.mp@aph.gov.au',
+        phone: '(03) 9417 0772',
+        photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Leader of the Australian Greens'],
+        isMinister: false,
+        isShadowMinister: false,
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        id: 'fallback_5',
+        fullName: 'Tanya Plibersek',
+        party: 'Australian Labor Party',
+        suburb: 'Sydney',
+        state: 'NSW',
+        electorate: 'Sydney',
+        chamber: 'House of Representatives',
+        email: 'tanya.plibersek.mp@aph.gov.au',
+        phone: '(02) 9357 6366',
+        photoUrl: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Environment and Water'],
+        isMinister: true,
+        isShadowMinister: false,
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        id: 'fallback_6',
+        fullName: 'Simon Birmingham',
+        party: 'Liberal Party of Australia',
+        suburb: 'Adelaide',
+        state: 'SA',
+        chamber: 'Senate',
+        email: 'senator.birmingham@aph.gov.au',
+        phone: '(08) 8354 0966',
+        photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Finance', 'Leader of the Opposition in the Senate'],
+        isMinister: false,
+        isShadowMinister: true,
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        id: 'fallback_7',
+        fullName: 'David Pocock',
+        party: 'Independent',
+        suburb: 'Canberra',
+        state: 'ACT',
+        chamber: 'Senate',
+        email: 'senator.pocock@aph.gov.au',
+        phone: '(02) 6277 3018',
+        photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Climate Action', 'Integrity'],
+        isMinister: false,
+        isShadowMinister: false,
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        id: 'fallback_8',
+        fullName: 'Zali Steggall',
+        party: 'Independent',
+        suburb: 'Warringah',
+        state: 'NSW',
+        electorate: 'Warringah',
+        chamber: 'House of Representatives',
+        email: 'zali.steggall.mp@aph.gov.au',
+        phone: '(02) 9977 6411',
+        photoUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+        portfolios: ['Climate Action'],
+        isMinister: false,
+        isShadowMinister: false,
+        lastUpdated: new Date().toISOString()
+      }
+    ];
   }
 
   // Get member by ID
@@ -240,7 +296,8 @@ export class ParliamentaryMembersService {
         member.fullName.toLowerCase().includes(query.toLowerCase()) ||
         member.party.toLowerCase().includes(query.toLowerCase()) ||
         member.suburb.toLowerCase().includes(query.toLowerCase()) ||
-        (member.electorate && member.electorate.toLowerCase().includes(query.toLowerCase()));
+        (member.electorate && member.electorate.toLowerCase().includes(query.toLowerCase())) ||
+        member.portfolios.some(portfolio => portfolio.toLowerCase().includes(query.toLowerCase()));
       
       const matchesState = !state || state === 'All' || member.state === state;
       const matchesParty = !party || member.party === party;
@@ -277,28 +334,55 @@ export class ParliamentaryMembersService {
     return this.members.filter(member => member.party === party);
   }
 
-  // Simulate daily data update
+  // Get ministers
+  getMinisters(): ParliamentaryMember[] {
+    return this.members.filter(member => member.isMinister);
+  }
+
+  // Get shadow ministers
+  getShadowMinisters(): ParliamentaryMember[] {
+    return this.members.filter(member => member.isShadowMinister);
+  }
+
+  // Force update members data
   async updateMembersData(): Promise<boolean> {
-    console.log('Updating parliamentary members data...');
+    console.log('Force updating parliamentary members data...');
     
     try {
-      // Simulate API call to check for updates
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // In a real app, this would fetch the latest data from the API
-      // const response = await fetch('https://api.parliament.gov.au/members');
-      // const updatedData = await response.json();
-      // this.members = updatedData;
-      
-      // For demo purposes, we'll just refresh the existing data
-      // and save it to cache
-      await this.saveCachedData();
-      
+      await this.fetchMembers(true);
       console.log('Members data updated successfully');
       return true;
     } catch (error) {
       console.error('Failed to update members data:', error);
       return false;
+    }
+  }
+
+  // Get update information
+  getUpdateInfo(): DataUpdateInfo {
+    return { ...this.updateInfo };
+  }
+
+  // Clear cache
+  async clearCache(): Promise<void> {
+    try {
+      await Promise.all([
+        AsyncStorage.removeItem(MEMBERS_CACHE_KEY),
+        AsyncStorage.removeItem(UPDATE_INFO_KEY)
+      ]);
+      
+      this.members = [];
+      this.cacheLoaded = false;
+      this.updateInfo = {
+        lastUpdated: '',
+        nextUpdate: '',
+        updateInProgress: false,
+        lastUpdateSuccess: false
+      };
+      
+      console.log('Cache cleared successfully');
+    } catch (error) {
+      console.error('Error clearing cache:', error);
     }
   }
 }

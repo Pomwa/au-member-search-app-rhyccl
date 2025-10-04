@@ -9,6 +9,11 @@ export interface ParliamentaryMember {
   chamber?: 'House of Representatives' | 'Senate';
   email?: string;
   phone?: string;
+  photoUrl?: string;
+  portfolios: string[];
+  isMinister?: boolean;
+  isShadowMinister?: boolean;
+  lastUpdated?: string;
 }
 
 export interface ParliamentaryMemberSearchFilters {
@@ -23,3 +28,11 @@ export const AUSTRALIAN_STATES = [
 ] as const;
 
 export type AustralianState = typeof AUSTRALIAN_STATES[number];
+
+export interface DataUpdateInfo {
+  lastUpdated: string;
+  nextUpdate: string;
+  updateInProgress: boolean;
+  lastUpdateSuccess: boolean;
+  errorMessage?: string;
+}

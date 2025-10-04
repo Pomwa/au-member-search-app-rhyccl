@@ -1,5 +1,4 @@
 
-import React, { useState, useMemo } from "react";
 import { Stack } from "expo-router";
 import { 
   FlatList, 
@@ -12,39 +11,56 @@ import {
   ActivityIndicator,
   RefreshControl
 } from "react-native";
-import { IconSymbol } from "@/components/IconSymbol";
-import { useTheme } from "@react-navigation/native";
 import { colors } from "@/styles/commonStyles";
-import { ParliamentaryMember, AUSTRALIAN_STATES } from "@/types/ParliamentaryMember";
-import { useParliamentaryMembers } from "@/hooks/useParliamentaryMembers";
 import { MemberCard } from "@/components/MemberCard";
+import { useParliamentaryMembers } from "@/hooks/useParliamentaryMembers";
+import React, { useState, useMemo } from "react";
+import { useTheme } from "@react-navigation/native";
+import { IconSymbol } from "@/components/IconSymbol";
+import { ParliamentaryMember, AUSTRALIAN_STATES } from "@/types/ParliamentaryMember";
 import { SearchBar } from "@/components/SearchBar";
 
-export default function HomeScreen() {
-  const theme = useTheme();
+const HomeScreen = () => {
+  const { colors: themeColors } = useTheme();
+  const { members, loading, refreshing, error, refreshMembers } = useParliamentaryMembers();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedState, setSelectedState] = useState<string>('All');
-  
-  const { 
-    members, 
-    loading, 
-    refreshing, 
-    error, 
-    refreshMembers, 
-    searchMembers 
-  } = useParliamentaryMembers();
+  const [selectedChamber, setSelectedChamber] = useState<string>('All');
+  const [selectedRole, setSelectedRole] = useState<string>('All');
+  const [showFilters, setShowFilters] = useState(false);
 
-  const states = AUSTRALIAN_STATES;
-
-  // Filter members based on search query and selected state
+  // Filter members based on search and filters
   const filteredMembers = useMemo(() => {
-    return searchMembers(searchQuery, selectedState);
-  }, [searchMembers, searchQuery, selectedState]);
+    return members.filter(member => {
+      // Search query filter
+      const matchesSearch = searchQuery === '' || 
+        member.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        member.party.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        member.suburb.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (member.electorate && member.electorate.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        member.portfolios.some(portfolio => portfolio.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+      // State filter
+      const matchesState = selectedState === 'All' || member.state === selectedState;
+      
+      // Chamber filter
+      const matchesChamber = selectedChamber === 'All' || member.chamber === selectedChamber;
+      
+      // Role filter
+      const matchesRole = selectedRole === 'All' || 
+        (selectedRole === 'Ministers' && member.isMinister) ||
+        (selectedRole === 'Shadow Ministers' && member.isShadowMinister) ||
+        (selectedRole === 'Regular Members' && !member.isMinister && !member.isShadowMinister);
+      
+      return matchesSearch && matchesState && matchesChamber && matchesRole;
+    });
+  }, [members, searchQuery, selectedState, selectedChamber, selectedRole]);
 
   const onRefresh = async () => {
-    await refreshMembers();
-    if (error) {
-      Alert.alert('Update Failed', error);
+    try {
+      await refreshMembers();
+    } catch (err) {
+      Alert.alert('Error', 'Failed to refresh data');
     }
   };
 
@@ -52,199 +68,271 @@ export default function HomeScreen() {
     <MemberCard member={item} />
   );
 
-  const renderStateFilter = () => (
-    <View style={styles.stateFilterContainer}>
-      <FlatList
-        horizontal
-        data={states}
-        keyExtractor={(item) => item}
-        showsHorizontalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Pressable
-            style={[
-              styles.stateFilterButton,
-              selectedState === item && styles.stateFilterButtonActive
-            ]}
-            onPress={() => setSelectedState(item)}
-          >
-            <Text style={[
-              styles.stateFilterText,
-              selectedState === item && styles.stateFilterTextActive
-            ]}>
-              {item}
-            </Text>
-          </Pressable>
-        )}
-      />
+  const renderFilterChip = (
+    label: string, 
+    value: string, 
+    selectedValue: string, 
+    onSelect: (value: string) => void
+  ) => (
+    <Pressable
+      style={[
+        styles.filterChip,
+        selectedValue === value && styles.filterChipSelected
+      ]}
+      onPress={() => onSelect(value)}
+    >
+      <Text style={[
+        styles.filterChipText,
+        selectedValue === value && styles.filterChipTextSelected
+      ]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+
+  const renderFilters = () => (
+    <View style={styles.filtersContainer}>
+      {/* State Filter */}
+      <View style={styles.filterSection}>
+        <Text style={styles.filterLabel}>State/Territory:</Text>
+        <View style={styles.filterChips}>
+          {AUSTRALIAN_STATES.map(state => 
+            renderFilterChip(state, state, selectedState, setSelectedState)
+          )}
+        </View>
+      </View>
+
+      {/* Chamber Filter */}
+      <View style={styles.filterSection}>
+        <Text style={styles.filterLabel}>Chamber:</Text>
+        <View style={styles.filterChips}>
+          {['All', 'Senate', 'House of Representatives'].map(chamber => 
+            renderFilterChip(chamber, chamber, selectedChamber, setSelectedChamber)
+          )}
+        </View>
+      </View>
+
+      {/* Role Filter */}
+      <View style={styles.filterSection}>
+        <Text style={styles.filterLabel}>Role:</Text>
+        <View style={styles.filterChips}>
+          {['All', 'Ministers', 'Shadow Ministers', 'Regular Members'].map(role => 
+            renderFilterChip(role, role, selectedRole, setSelectedRole)
+          )}
+        </View>
+      </View>
     </View>
   );
 
   const renderHeaderRight = () => (
-    <Pressable
-      onPress={onRefresh}
-      style={styles.headerButtonContainer}
+    <Pressable 
+      style={styles.headerButton}
+      onPress={() => setShowFilters(!showFilters)}
     >
-      <IconSymbol name="arrow.clockwise" color={colors.primary} />
+      <IconSymbol 
+        name={showFilters ? "line.horizontal.3.decrease.circle.fill" : "line.horizontal.3.decrease.circle"} 
+        size={24} 
+        color={colors.text} 
+      />
     </Pressable>
   );
 
   const renderHeaderLeft = () => (
-    <Pressable
-      onPress={() => Alert.alert("Info", "Australian Parliamentary Members Search\n\nSearch by name, party, suburb, or electorate.\nFilter by state/territory.\nPull down to refresh data.")}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol name="info.circle" color={colors.primary} />
-    </Pressable>
+    <View style={styles.headerLeft}>
+      <Text style={styles.headerTitle}>Parliament</Text>
+      <Text style={styles.headerSubtitle}>
+        {filteredMembers.length} member{filteredMembers.length !== 1 ? 's' : ''}
+      </Text>
+    </View>
   );
 
-  if (loading) {
-    return (
-      <>
-        {Platform.OS === 'ios' && (
-          <Stack.Screen
-            options={{
-              title: "Parliamentary Members",
-              headerRight: renderHeaderRight,
-              headerLeft: renderHeaderLeft,
-            }}
-          />
-        )}
-        <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>
-            Loading Parliamentary Members...
+  const renderHeader = () => (
+    <View>
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder="Search members, parties, portfolios..."
+      />
+      
+      {showFilters && renderFilters()}
+      
+      {error && (
+        <View style={styles.errorContainer}>
+          <IconSymbol name="exclamationmark.triangle" size={20} color={colors.error} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+      
+      {filteredMembers.length === 0 && !loading && (
+        <View style={styles.emptyContainer}>
+          <IconSymbol name="magnifyingglass" size={48} color={colors.textSecondary} />
+          <Text style={styles.emptyText}>No members found</Text>
+          <Text style={styles.emptySubtext}>
+            Try adjusting your search or filters
           </Text>
         </View>
-      </>
+      )}
+    </View>
+  );
+
+  if (loading && members.length === 0) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Stack.Screen 
+          options={{ 
+            title: 'Loading...',
+            headerLeft: () => null,
+            headerRight: () => null,
+          }} 
+        />
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={styles.loadingText}>Loading parliamentary members...</Text>
+      </View>
     );
   }
 
   return (
-    <>
-      {Platform.OS === 'ios' && (
-        <Stack.Screen
-          options={{
-            title: "Parliamentary Members",
-            headerRight: renderHeaderRight,
-            headerLeft: renderHeaderLeft,
-          }}
-        />
-      )}
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search by name, party, suburb..."
-        />
-        
-        {renderStateFilter()}
-        
-        <View style={styles.resultsHeader}>
-          <Text style={[styles.resultsText, { color: colors.textSecondary }]}>
-            {filteredMembers.length} member{filteredMembers.length !== 1 ? 's' : ''} found
-          </Text>
-        </View>
-
-        <FlatList
-          data={filteredMembers}
-          renderItem={renderMember}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[
-            styles.listContainer,
-            Platform.OS !== 'ios' && styles.listContainerWithTabBar
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <IconSymbol name="magnifyingglass" size={48} color={colors.textSecondary} />
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No members found matching your search
-              </Text>
-            </View>
-          }
-        />
-      </View>
-    </>
+    <View style={styles.container}>
+      <Stack.Screen 
+        options={{ 
+          headerLeft: renderHeaderLeft,
+          headerRight: renderHeaderRight,
+          headerTitle: '',
+        }} 
+      />
+      
+      <FlatList
+        data={filteredMembers}
+        keyExtractor={(item) => item.id}
+        renderItem={renderMember}
+        ListHeaderComponent={renderHeader}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.accent]}
+            tintColor={colors.accent}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
-  loadingContainer: {
-    flex: 1,
+  centered: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    textAlign: 'center',
+  listContent: {
+    paddingBottom: 100, // Space for floating tab bar
   },
-  stateFilterContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+  headerLeft: {
+    marginLeft: 16,
   },
-  stateFilterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  headerButton: {
+    marginRight: 16,
+    padding: 4,
+  },
+  filtersContainer: {
+    backgroundColor: colors.card,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
+    elevation: 1,
+  },
+  filterSection: {
+    marginBottom: 16,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  filterChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     backgroundColor: colors.highlight,
     borderWidth: 1,
     borderColor: colors.highlight,
   },
-  stateFilterButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  filterChipSelected: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
-  stateFilterText: {
-    fontSize: 14,
-    fontWeight: '500',
+  filterChipText: {
+    fontSize: 12,
     color: colors.textSecondary,
-  },
-  stateFilterTextActive: {
-    color: colors.card,
-  },
-  resultsHeader: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  resultsText: {
-    fontSize: 14,
     fontWeight: '500',
   },
-  listContainer: {
-    paddingBottom: 16,
+  filterChipTextSelected: {
+    color: colors.background,
+    fontWeight: '600',
   },
-  listContainerWithTabBar: {
-    paddingBottom: 100, // Extra padding for floating tab bar
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.error + '20',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
   },
-  headerButtonContainer: {
-    padding: 6,
+  errorText: {
+    fontSize: 14,
+    color: colors.error,
+    marginLeft: 8,
+    flex: 1,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
+    paddingVertical: 48,
+    paddingHorizontal: 32,
   },
   emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textSecondary,
     marginTop: 16,
-    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 24,
   },
-
+  emptySubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
+    textAlign: 'center',
+  },
 });
+
+export default HomeScreen;

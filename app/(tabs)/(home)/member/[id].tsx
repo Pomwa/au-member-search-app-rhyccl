@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { 
   View, 
   Text, 
@@ -8,329 +7,433 @@ import {
   Pressable, 
   Platform,
   Linking,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { IconSymbol } from '@/components/IconSymbol';
-import { colors, commonStyles } from '@/styles/commonStyles';
 import { ParliamentaryMember } from '@/types/ParliamentaryMember';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import React, { useEffect, useState } from 'react';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { parliamentaryMembersService } from '@/services/parliamentaryMembersService';
+import { IconSymbol } from '@/components/IconSymbol';
 
-export default function MemberDetailsScreen() {
+const MemberDetailsScreen = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
-  
-  // Find the member by ID
-  const member = parliamentaryMembersService.getMemberById(id || '');
+  const [member, setMember] = useState<ParliamentaryMember | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!member) {
-    return (
-      <>
-        <Stack.Screen
-          options={{
-            title: 'Member Not Found',
-            headerLeft: () => (
-              <Pressable onPress={() => router.back()} style={styles.headerButton}>
-                <IconSymbol name="chevron.left" size={20} color={colors.primary} />
-              </Pressable>
-            ),
-          }}
-        />
-        <View style={[styles.container, styles.errorContainer]}>
-          <IconSymbol name="exclamationmark.triangle" size={48} color={colors.textSecondary} />
-          <Text style={[styles.errorText, { color: colors.text }]}>
-            Member not found
-          </Text>
-          <Pressable 
-            style={[styles.backButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.back()}
-          >
-            <Text style={[styles.backButtonText, { color: colors.card }]}>
-              Go Back
-            </Text>
-          </Pressable>
-        </View>
-      </>
-    );
-  }
+  useEffect(() => {
+    const loadMember = async () => {
+      if (id) {
+        try {
+          // First try to get from service
+          let foundMember = parliamentaryMembersService.getMemberById(id);
+          
+          if (!foundMember) {
+            // If not found, fetch all members and try again
+            await parliamentaryMembersService.fetchMembers();
+            foundMember = parliamentaryMembersService.getMemberById(id);
+          }
+          
+          setMember(foundMember || null);
+        } catch (error) {
+          console.error('Error loading member:', error);
+          Alert.alert('Error', 'Failed to load member details');
+        }
+      }
+      setLoading(false);
+    };
+
+    loadMember();
+  }, [id]);
 
   const handleEmailPress = () => {
-    if (member.email) {
+    if (member?.email) {
       const emailUrl = `mailto:${member.email}`;
-      Linking.canOpenURL(emailUrl).then(supported => {
-        if (supported) {
-          Linking.openURL(emailUrl);
-        } else {
-          Alert.alert('Error', 'Email client not available');
-        }
+      Linking.openURL(emailUrl).catch(() => {
+        Alert.alert('Error', 'Could not open email client');
       });
     }
   };
 
   const handlePhonePress = () => {
-    if (member.phone) {
-      const phoneUrl = `tel:${member.phone.replace(/[^\d+]/g, '')}`;
-      Linking.canOpenURL(phoneUrl).then(supported => {
-        if (supported) {
-          Linking.openURL(phoneUrl);
-        } else {
-          Alert.alert('Error', 'Phone app not available');
-        }
+    if (member?.phone) {
+      const phoneUrl = Platform.OS === 'ios' ? `tel:${member.phone}` : `tel:${member.phone}`;
+      Linking.openURL(phoneUrl).catch(() => {
+        Alert.alert('Error', 'Could not open phone dialer');
       });
     }
   };
 
-  const getPartyColor = (party: string) => {
-    if (party.includes('Labor')) return '#e53e3e';
-    if (party.includes('Liberal')) return '#3182ce';
-    if (party.includes('Greens')) return '#38a169';
-    if (party.includes('One Nation')) return '#d69e2e';
-    if (party.includes('Country Liberal')) return '#805ad5';
-    return colors.primary;
+  const getPartyColor = (party: string): string => {
+    const partyColors: { [key: string]: string } = {
+      'Australian Labor Party': '#FF6B6B',
+      'Liberal Party of Australia': '#4ECDC4',
+      'Australian Greens': '#45B7D1',
+      'One Nation': '#FFA07A',
+      'Independent': '#98D8C8',
+      'Country Liberal Party': '#F7DC6F',
+    };
+    return partyColors[party] || colors.accent;
   };
 
-  return (
-    <>
-      <Stack.Screen
-        options={{
-          title: member.fullName,
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={styles.headerButton}>
-              <IconSymbol name="chevron.left" size={20} color={colors.primary} />
-            </Pressable>
-          ),
-        }}
-      />
-      <ScrollView 
-        style={[styles.container, { backgroundColor: colors.background }]}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Header Card */}
-        <View style={[styles.headerCard, { backgroundColor: colors.card }]}>
-          <View style={[styles.partyBadge, { backgroundColor: getPartyColor(member.party) }]}>
-            <Text style={[styles.partyBadgeText, { color: colors.card }]}>
-              {member.chamber === 'Senate' ? 'SEN' : 'MP'}
-            </Text>
-          </View>
-          <Text style={[styles.memberName, { color: colors.text }]}>
-            {member.fullName}
-          </Text>
-          <Text style={[styles.memberParty, { color: getPartyColor(member.party) }]}>
-            {member.party}
-          </Text>
-        </View>
+  const getRoleInfo = () => {
+    const roles = [];
+    if (member?.isMinister) roles.push('Minister');
+    if (member?.isShadowMinister) roles.push('Shadow Minister');
+    return roles;
+  };
 
-        {/* Details Section */}
-        <View style={[styles.section, { backgroundColor: colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Representation Details
-          </Text>
+  if (loading) {
+    return (
+      <View style={[commonStyles.container, commonStyles.centered]}>
+        <Stack.Screen options={{ title: 'Loading...' }} />
+        <Text style={styles.loadingText}>Loading member details...</Text>
+      </View>
+    );
+  }
+
+  if (!member) {
+    return (
+      <View style={[commonStyles.container, commonStyles.centered]}>
+        <Stack.Screen options={{ title: 'Member Not Found' }} />
+        <IconSymbol name="person.slash" size={64} color={colors.textSecondary} />
+        <Text style={styles.errorText}>Member not found</Text>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const roles = getRoleInfo();
+
+  return (
+    <View style={commonStyles.container}>
+      <Stack.Screen 
+        options={{ 
+          title: member.fullName,
+          headerBackTitle: 'Members',
+        }} 
+      />
+      
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Header Section with Photo */}
+        <View style={styles.headerSection}>
+          <View style={styles.photoContainer}>
+            {member.photoUrl ? (
+              <Image 
+                source={{ uri: member.photoUrl }} 
+                style={styles.photo}
+                defaultSource={require('@/assets/images/natively-dark.png')}
+              />
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <IconSymbol name="person.circle" size={80} color={colors.textSecondary} />
+              </View>
+            )}
+          </View>
           
-          <View style={styles.detailRow}>
-            <IconSymbol name="building.2" size={20} color={colors.textSecondary} />
-            <View style={styles.detailContent}>
-              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                Chamber
-              </Text>
-              <Text style={[styles.detailValue, { color: colors.text }]}>
-                {member.chamber || 'Parliament'}
+          <View style={styles.headerInfo}>
+            <Text style={styles.name}>{member.fullName}</Text>
+            
+            {roles.length > 0 && (
+              <View style={styles.rolesContainer}>
+                {roles.map((role, index) => (
+                  <View 
+                    key={index} 
+                    style={[
+                      styles.roleTag, 
+                      { backgroundColor: role === 'Minister' ? '#FFD700' : '#C0C0C0' }
+                    ]}
+                  >
+                    <Text style={styles.roleTagText}>{role}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            <View style={[styles.partyContainer, { backgroundColor: getPartyColor(member.party) + '20' }]}>
+              <View style={[styles.partyIndicator, { backgroundColor: getPartyColor(member.party) }]} />
+              <Text style={[styles.party, { color: getPartyColor(member.party) }]}>
+                {member.party}
               </Text>
             </View>
           </View>
+        </View>
 
+        {/* Location Information */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol name="location" size={20} color={colors.accent} />
+            <Text style={styles.sectionTitle}>Location</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>State:</Text>
+            <Text style={styles.infoValue}>{member.state}</Text>
+          </View>
+          
           {member.electorate && (
-            <View style={styles.detailRow}>
-              <IconSymbol name="map" size={20} color={colors.textSecondary} />
-              <View style={styles.detailContent}>
-                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                  Electorate
-                </Text>
-                <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {member.electorate}
-                </Text>
-              </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Electorate:</Text>
+              <Text style={styles.infoValue}>{member.electorate}</Text>
             </View>
           )}
-
-          <View style={styles.detailRow}>
-            <IconSymbol name="location" size={20} color={colors.textSecondary} />
-            <View style={styles.detailContent}>
-              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                Location
-              </Text>
-              <Text style={[styles.detailValue, { color: colors.text }]}>
-                {member.suburb}, {member.state}
-              </Text>
-            </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Suburb:</Text>
+            <Text style={styles.infoValue}>{member.suburb}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Chamber:</Text>
+            <Text style={styles.infoValue}>{member.chamber}</Text>
           </View>
         </View>
 
-        {/* Contact Section */}
-        <View style={[styles.section, { backgroundColor: colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Contact Information
-          </Text>
+        {/* Portfolios */}
+        {member.portfolios && member.portfolios.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol name="briefcase" size={20} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Portfolios</Text>
+            </View>
+            
+            {member.portfolios.map((portfolio, index) => (
+              <View key={index} style={styles.portfolioItem}>
+                <View style={styles.portfolioBullet} />
+                <Text style={styles.portfolioText}>{portfolio}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Contact Information */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <IconSymbol name="phone" size={20} color={colors.accent} />
+            <Text style={styles.sectionTitle}>Contact</Text>
+          </View>
           
           {member.email && (
-            <Pressable style={styles.contactRow} onPress={handleEmailPress}>
-              <IconSymbol name="envelope" size={20} color={colors.primary} />
-              <View style={styles.detailContent}>
-                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                  Email
-                </Text>
-                <Text style={[styles.contactValue, { color: colors.primary }]}>
-                  {member.email}
-                </Text>
+            <Pressable style={styles.contactItem} onPress={handleEmailPress}>
+              <IconSymbol name="envelope" size={18} color={colors.accent} />
+              <View style={styles.contactInfo}>
+                <Text style={styles.contactLabel}>Email</Text>
+                <Text style={styles.contactValue}>{member.email}</Text>
               </View>
               <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
             </Pressable>
           )}
-
+          
           {member.phone && (
-            <Pressable style={styles.contactRow} onPress={handlePhonePress}>
-              <IconSymbol name="phone" size={20} color={colors.primary} />
-              <View style={styles.detailContent}>
-                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                  Phone
-                </Text>
-                <Text style={[styles.contactValue, { color: colors.primary }]}>
-                  {member.phone}
-                </Text>
+            <Pressable style={styles.contactItem} onPress={handlePhonePress}>
+              <IconSymbol name="phone" size={18} color={colors.accent} />
+              <View style={styles.contactInfo}>
+                <Text style={styles.contactLabel}>Phone</Text>
+                <Text style={styles.contactValue}>{member.phone}</Text>
               </View>
               <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
             </Pressable>
           )}
         </View>
 
-        {/* Info Section */}
-        <View style={[styles.infoSection, { backgroundColor: colors.highlight }]}>
-          <IconSymbol name="info.circle" size={20} color={colors.textSecondary} />
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            This information is sourced from the Australian Parliament House directory. 
-            Contact details may be subject to change.
-          </Text>
-        </View>
+        {/* Last Updated */}
+        {member.lastUpdated && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <IconSymbol name="clock" size={20} color={colors.textSecondary} />
+              <Text style={styles.sectionTitle}>Last Updated</Text>
+            </View>
+            
+            <Text style={styles.lastUpdated}>
+              {new Date(member.lastUpdated).toLocaleString()}
+            </Text>
+          </View>
+        )}
       </ScrollView>
-    </>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
+  scrollView: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: Platform.OS !== 'ios' ? 100 : 32, // Extra padding for floating tab bar
+  headerSection: {
+    flexDirection: 'row',
+    padding: 20,
+    backgroundColor: colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.highlight,
   },
-  headerButton: {
-    padding: 8,
-    marginLeft: -8,
+  photoContainer: {
+    marginRight: 16,
   },
-  errorContainer: {
+  photo: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.highlight,
+  },
+  photoPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.highlight,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  rolesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  roleTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  roleTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  partyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  partyIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  party: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  section: {
+    backgroundColor: colors.card,
+    marginTop: 12,
     paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginLeft: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.highlight,
+  },
+  infoLabel: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 16,
+    color: colors.text,
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: 16,
+  },
+  portfolioItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  portfolioBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+    marginTop: 6,
+    marginRight: 12,
+  },
+  portfolioText: {
+    fontSize: 16,
+    color: colors.text,
+    flex: 1,
+    lineHeight: 22,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.highlight,
+  },
+  contactInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  contactLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  contactValue: {
+    fontSize: 16,
+    color: colors.text,
+  },
+  lastUpdated: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   errorText: {
     fontSize: 18,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
     marginTop: 16,
     marginBottom: 24,
-    textAlign: 'center',
   },
   backButton: {
+    backgroundColor: colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   backButtonText: {
+    color: colors.background,
     fontSize: 16,
     fontWeight: '600',
-  },
-  headerCard: {
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 16,
-    alignItems: 'center',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
-  },
-  partyBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 16,
-  },
-  partyBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  memberName: {
-    fontSize: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  memberParty: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  section: {
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.highlight,
-  },
-  contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.highlight,
-  },
-  detailContent: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  detailValue: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  contactValue: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  infoSection: {
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 8,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-    marginLeft: 12,
   },
 });
+
+export default MemberDetailsScreen;
