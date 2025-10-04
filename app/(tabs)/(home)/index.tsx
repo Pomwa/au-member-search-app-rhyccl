@@ -19,6 +19,7 @@ import { useTheme } from "@react-navigation/native";
 import { IconSymbol } from "@/components/IconSymbol";
 import { ParliamentaryMember, AUSTRALIAN_STATES } from "@/types/ParliamentaryMember";
 import { SearchBar } from "@/components/SearchBar";
+import { StateFilter } from "@/components/StateFilter";
 
 const HomeScreen = () => {
   const { colors: themeColors } = useTheme();
@@ -27,7 +28,7 @@ const HomeScreen = () => {
   const [selectedState, setSelectedState] = useState<string>('All');
   const [selectedChamber, setSelectedChamber] = useState<string>('All');
   const [selectedRole, setSelectedRole] = useState<string>('All');
-  const [showFilters, setShowFilters] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Filter members based on search and filters
   const filteredMembers = useMemo(() => {
@@ -90,18 +91,8 @@ const HomeScreen = () => {
     </Pressable>
   );
 
-  const renderFilters = () => (
-    <View style={styles.filtersContainer}>
-      {/* State Filter */}
-      <View style={styles.filterSection}>
-        <Text style={styles.filterLabel}>State/Territory:</Text>
-        <View style={styles.filterChips}>
-          {AUSTRALIAN_STATES.map(state => 
-            renderFilterChip(state, state, selectedState, setSelectedState)
-          )}
-        </View>
-      </View>
-
+  const renderAdvancedFilters = () => (
+    <View style={styles.advancedFiltersContainer}>
       {/* Chamber Filter */}
       <View style={styles.filterSection}>
         <Text style={styles.filterLabel}>Chamber:</Text>
@@ -127,10 +118,10 @@ const HomeScreen = () => {
   const renderHeaderRight = () => (
     <Pressable 
       style={styles.headerButton}
-      onPress={() => setShowFilters(!showFilters)}
+      onPress={() => setShowAdvancedFilters(!showAdvancedFilters)}
     >
       <IconSymbol 
-        name={showFilters ? "line.horizontal.3.decrease.circle.fill" : "line.horizontal.3.decrease.circle"} 
+        name={showAdvancedFilters ? "line.horizontal.3.decrease.circle.fill" : "line.horizontal.3.decrease.circle"} 
         size={24} 
         color={colors.text} 
       />
@@ -154,7 +145,12 @@ const HomeScreen = () => {
         placeholder="Search members, parties, portfolios..."
       />
       
-      {showFilters && renderFilters()}
+      <StateFilter
+        selectedState={selectedState}
+        onStateSelect={setSelectedState}
+      />
+      
+      {showAdvancedFilters && renderAdvancedFilters()}
       
       {error && (
         <View style={styles.errorContainer}>
@@ -250,7 +246,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
     padding: 4,
   },
-  filtersContainer: {
+  advancedFiltersContainer: {
     backgroundColor: colors.card,
     marginHorizontal: 16,
     marginBottom: 16,
